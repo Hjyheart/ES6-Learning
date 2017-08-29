@@ -543,3 +543,277 @@ for (let [,value] of map) {
 const { SourceMapConsumer, SourceNode } = require("source-map");
 ```
 
+## 字符串的扩展
+ES5中只限于\u0000~\uFFFF之间的字符。超过这个范围的字符，必须用两个双字节表示。
+
+如果直接在\u后面跟上超过0xFFFF的数值（比如\u20BB7），JavaScript会理解成\u20BB+7。由于\u20BB是一个不可打印字符，所以只会显示一个空格，后面跟着一个7。
+
+ES6对这一点进行了改进，只要将码点放入大括号，就能正确解读字符。
+
+``` javascript
+"\u{20BB7}"
+// "𠮷"
+
+"\u{41}\u{42}\u{43}"
+// "ABC"
+
+let hello = 123;
+hell\u{6F} // 123
+
+'\u{1F680}' === '\uD83D\uDE80'
+// true
+```
+
+同时ES6给出了一系列方法来处理超过0xFFFF的字符，解决ES5的遗留问题。
+
+### codePointAt()方法
+ES5没办法处理需要4个字节存储的字符，charAt方法无法读取整个字符，charCodeAt方法只能分别返回前两个字节和后两个字节的值，ES6提供了codePointAt方法，能够正确处理4个字节储存的字符，返回一个字符的码点。codePointAt方法会正确返回32位的UTF-16字符的码点。对于那些两个字节储存的常规字符，它的返回结果与charCodeAt方法相同。
+
+codePointAt方法返回的是码点的十进制值，如果想要十六进制的值，可以使用toString方法转换一下。
+
+``` javascript
+var s = '𠮷a';
+
+s.codePointAt(0).toString(16) // "20bb7"
+s.codePointAt(2).toString(16) // "61"
+```
+同时，该方法还是测试一个字符由两个字节还是四个字节组成的简单方法。
+
+``` javascript
+function is32Bit(c) {
+  return c.codePointAt(0) > 0xFFFF;
+}
+
+is32Bit("𠮷") // true
+is32Bit("a") // false
+```
+
+### String.fromCodePoint()
+跟codePointAt()相似，这个函数也是用来解决ES5中无法处理大于FFFF的字符的。这个方法可以直接从码点返回字符，在ES5中会将高位抛弃从而得不到结果。
+
+**注意，fromCodePoint方法定义在String对象上，而codePointAt方法定义在字符串的实例对象上。**
+
+### at()
+at()方法同样是用来解决超过0xFFFF的字符问题的。ES5中的charAt方法在对付双字节存储的字符时只会得到一部分。
+
+ES6中的一个提案是用一个at函数去返回正确的字符。
+
+### normalize()
+normalize()方法同样是用来处理疑难字符的，比如欧洲的一些带有音调的字符。为了表示它们，Unicode 提供了两种方法。一种是直接提供带重音符号的字符，比如Ǒ（\u01D1）。另一种是提供合成符号（combining character），即原字符与重音符号的合成，两个字符合成一个字符，比如O（\u004F）和ˇ（\u030C）合成Ǒ（\u004F\u030C）。
+
+这两种表示方法，在视觉和语义上都等价，但是 JavaScript 不能识别。
+
+``` javascript
+'\u01D1'==='\u004F\u030C' //false
+
+'\u01D1'.length // 1
+'\u004F\u030C'.length // 2
+```
+上面代码表示，JavaScript 将合成字符视为两个字符，导致两种表示方法不相等。
+
+ES6 提供字符串实例的normalize()方法，用来将字符的不同表示方法统一为同样的形式，这称为 Unicode 正规化。
+
+``` javascript
+'\u01D1'.normalize() === '\u004F\u030C'.normalize()
+// true
+```
+
+**不过，normalize方法目前不能识别三个或三个以上字符的合成。这种情况下，还是只能使用正则表达式，通过Unicode编号区间判断。**
+
+### includes(), startsWith(), endsWith()
+原来的ES5中提供了一个indexOf方法，可以用来确定一个字符是否包含在另一个字符串中，ES6中又加了3个好用的方法。
+
+- includes(): 返回布尔值，表示是否找到了参数字符串
+- startsWith(): 返回布尔值，表示参数字符串是否在原字符串的头部
+- endsWith(): 返回布尔值，表示参数字符串是否在元字符串的尾部
+
+这三个方法都支持第二个参数，表示开始搜索的位置。
+
+``` javascript
+var s = 'Hello world!';
+
+s.startsWith('Hello') // true
+s.endsWith('!') // true
+s.includes('o') // true
+
+s.startsWith('world', 6) // true
+s.endsWith('Hello', 5) // true
+s.includes('Hello', 6) // false
+```
+
+上面代码表示，使用第二个参数n时，endsWith的行为与其他两个方法有所不同。它针对前n个字符，而其他两个方法针对从第n个位置直到字符串结束。
+
+### repeat()
+这个方法就是单纯地把某个字符串重复几遍，没啥好说的。上代码。
+
+``` javascript
+'x'.repeat(3) // "xxx"
+'hello'.repeat(2) // "hellohello"
+'na'.repeat(0) // ""
+```
+
+### padStart(), padEnd()
+如果某个字符串不够指定长度，可以用padStart(), padEnd()方法在头部或尾部补全。看一下代码也很快就能看懂。如果你省略第二个参数，默认会用空格补全。
+
+``` javascript
+'x'.padStart(5, 'ab') // 'ababx'
+'x'.padStart(4, 'ab') // 'abax'
+
+'x'.padEnd(5, 'ab') // 'xabab'
+'x'.padEnd(4, 'ab') // 'xaba'
+```
+
+### 模板字符串
+在ES6可以使用${}来编写模板输出字符串，这跟很多模板语言很像。然后引入了``来标识这种增强版的字符串。也可以用来定义多行字符串，或者在字符中嵌入变量。
+代码的话，大概会这样：
+
+``` javascript
+$('#result').append(`
+  There are <b>${basket.count}</b> items
+   in your basket, <em>${basket.onSale}</em>
+  are on sale!
+`);
+
+// 普通字符串
+`In JavaScript '\n' is a line-feed.`
+
+// 多行字符串
+`In JavaScript this is
+ not legal.`
+
+console.log(`string text line 1
+string text line 2`);
+
+// 字符串中嵌入变量
+var name = "Bob", time = "today";
+`Hello ${name}, how are you ${time}?`
+```
+**如果在模板字符串中需要使用反引号，则前面要用反斜杠转义。**
+
+如果使用模板字符串表示多行字符串，所有的空格和缩进都会被保留在输出之中。
+
+``` javascript
+$('#list').html(`
+<ul>
+  <li>first</li>
+  <li>second</li>
+</ul>
+`);
+```
+
+在大括号内可以使用表达式，甚至可以调方法，还可以嵌套，很是酷炫。
+
+``` javascript
+var x = 1;
+var y = 2;
+
+`${x} + ${y} = ${x + y}`
+// "1 + 2 = 3"
+
+`${x} + ${y * 2} = ${x + y * 2}`
+// "1 + 4 = 5"
+
+var obj = {x: 1, y: 2};
+`${obj.x + obj.y}`
+// "3"
+
+function fn() {
+  return "Hello World";
+}
+
+`foo ${fn()} bar`
+// foo Hello World bar
+
+const tmpl = addrs => `
+  <table>
+  ${addrs.map(addr => `
+    <tr><td>${addr.first}</td></tr>
+    <tr><td>${addr.last}</td></tr>
+  `).join('')}
+  </table>
+`;
+```
+
+如果需要引用模板字符串本身，在需要时执行，可以像下面这样写。
+
+``` javascript
+// 写法一
+let str = 'return ' + '`Hello ${name}!`';
+let func = new Function('name', str);
+func('Jack') // "Hello Jack!"
+
+// 写法二
+let str = '(name) => `Hello ${name}!`';
+let func = eval.call(null, str);
+func('Jack') // "Hello Jack!"
+```
+
+### 标签模板
+模板字符串可以直接跟在某个函数名后面，然后该函数可以用来处理这个模板字符串。如果模板字符里面有变量，就不是简单的调用，而是会把模板字符串先处理成多个参数，然后再调用函数。
+
+``` javascript
+var a = 5;
+var b = 10;
+
+tag`Hello ${ a + b } world ${ a * b }`;
+// 等同于
+tag(['Hello ', ' world ', ''], 15, 50);
+```
+
+函数调用的参数如下：
+
+- 第一个参数是一个数组，该数组的成员是模板字符串中那些没有变量替换的部分，也就是说，变量替换只发生在数组的第一个成员与第二个成员之间、第二个成员与第三个成员之间，以此类推
+- tag函数的其他参数，都是模板字符串各个变量被替换后的值。由于本例中，模板字符串含有两个变量，因此tag会接受到value1和value2两个参数
+
+另外一个例子：
+
+``` javascript
+var a = 5;
+var b = 10;
+
+function tag(s, v1, v2) {
+  console.log(s[0]);
+  console.log(s[1]);
+  console.log(s[2]);
+  console.log(v1);
+  console.log(v2);
+
+  return "OK";
+}
+
+tag`Hello ${ a + b } world ${ a * b}`;
+// "Hello "
+// " world "
+// ""
+// 15
+// 50
+// "OK"
+```
+
+标签模板有主要这么几种功能：
+
+- 过滤HTML字符串
+- 多语言转换（国际化处理）
+- 在js中嵌入其他语言
+
+### String.raw()
+String.raw()方法，往往用来充当模板字符串的处理函数，返回一个斜杠都被转义的字符串，对应于替换变量后的模板字符串。
+
+``` javascript
+String.raw`Hi\n${2+3}!`;
+// "Hi\\n5!"
+
+String.raw`Hi\u000A!`;
+// 'Hi\\u000A!'
+```
+
+### 模板字符串的限制
+当然啦，模板字符串也有它的局限性，归纳如下
+
+- 虽然可以用模板字符串嵌入其他语言，但是由于存在字符串的转义，导致有些语言无法使用，比如嵌入Latex
+
+
+
+
+
+
