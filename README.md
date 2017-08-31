@@ -812,8 +812,197 @@ String.raw`Hi\u000A!`;
 
 - 虽然可以用模板字符串嵌入其他语言，但是由于存在字符串的转义，导致有些语言无法使用，比如嵌入Latex
 
+## 正则的拓展
+在ES5中，我们声明正则表达式一般有两种方法
 
+- 参数是字符串，这时第二个参数表示正则表达式的修饰符
+- 参数是一个正则表达式，这时会返回一个原有正则表达式的拷贝
 
+但是，不允许这种情况
+
+``` javascript
+var regex = new RegExp(/xyz/, 'i');
+```
+
+ES6改变了这个状况，如果RegExp构造函数第一个参数是一个正则对象，那么可以使用第二个参数指定修饰符。而且，返回的正则表达式会忽略原有的正则表达式的修饰符，只使用新指定的修饰符。
+
+``` javascript
+new RegExp(/abc/ig, 'i').flags
+// "i"
+// 原有正则对象的修饰符是ig，它会被第二个参数i覆盖
+```
+
+### 字符串的正则方法
+字符串自身就可以调用正则方法，比如match(), replace(), search(), split()。
+
+ES6干脆把这几个方法都封装在了RexExp上。
+
+- String.prototype.match 
+- String.prototype.replace
+- String.prototype.search 
+- String.prototype.split 
+
+### u
+ES6中添加了u修饰符，来处理大于\uFFFF的unicode字符。
+
+``` javascript
+/^\uD83D/u.test('\uD83D\uDC2A') // false
+/^\uD83D/.test('\uD83D\uDC2A') // true
+```
+
+上面代码中，\uD83D\uDC2A是一个四个字节的 UTF-16 编码，代表一个字符。但是，ES5 不支持四个字节的 UTF-16 编码，会将其识别为两个字符，导致第二行代码结果为true。加了u修饰符以后，ES6 就会识别其为一个字符，所以第一行代码结果为false。
+
+u修饰符会影响以下行为：
+
+#### 点字符
+``` javascript
+var s = '𠮷';
+
+/^.$/.test(s) // false
+/^.$/u.test(s) // true
+```
+
+#### unicode字符表示法
+``` javascript
+/\u{61}/.test('a') // false
+/\u{61}/u.test('a') // true
+/\u{20BB7}/u.test('𠮷') // true
+```
+
+#### 量词
+``` javascript
+/a{2}/.test('aa') // true
+/a{2}/u.test('aa') // true
+/𠮷{2}/.test('𠮷𠮷') // false
+/𠮷{2}/u.test('𠮷𠮷') // true
+```
+
+#### 预定义模式
+``` javascript
+/^\S$/.test('𠮷') // false
+/^\S$/u.test('𠮷') // true
+```
+
+#### i修饰符
+``` javascript
+//有些 Unicode 字符的编码不同，但是字型很相近，比如，\u004B与\u212A都是大写的K。
+
+/[a-z]/i.test('\u212A') // false
+/[a-z]/iu.test('\u212A') // true
+//上面代码中，不加u修饰符，就无法识别非规范的K字符。
+```
+
+### y修饰符
+ES6添加了一个叫做“粘连”的y修饰符。y和g的作用其实是差不多的，但是g是在上次匹配成功的后面的串种只有有匹配的串就行了，但是y必须是从上次匹配成功的地方开始。
+
+``` javascript
+var s = 'aaa_aa_a';
+var r1 = /a+/g;
+var r2 = /a+/y;
+
+r1.exec(s) // ["aaa"]
+r2.exec(s) // ["aaa"]
+
+r1.exec(s) // ["aa"]
+r2.exec(s) // null
+```
+
+**同时，ES6新增了一个sticky属性看是不是设置了y，并设置了一个flags属性来返回修饰符**
+
+### s修饰符：dotAll
+ES6引入s修饰符使得.可以通配所有的字符。并且设置了一个dotAll属性看是不是使用了这个属性。
+
+### 后行断言
+ES本来只有先行断言和先行否定断言，但是ES6引入了后行断言和后行否定断言。
+
+- 先行断言：x只有在y前面才匹配，必须写成/x(?=y)/。比如，只匹配百分号之前的数字，要写成/\d+(?=%)/
+- 先行否定断言：x只有不在y前面才匹配，必须写成/x(?!y)/。比如，只匹配不在百分号之前的数字，要写成/\d+(?!%)/
+- 后行断言：x只有在y后面才匹配，必须写成/(?<=y)x/。比如，只匹配美元符号之后的数字，要写成/(?<=\$)\d+/
+- 后行否定断言：x只有不在y后面才匹配，必须写成/(?<!y)x/。比如，只匹配不在美元符号后面的数字，要写成/(?<!\$)\d+/
+
+### Unicode属性类
+这个新加的特性非常猛，可以通过\p来匹配unicode属性相关的东西。比如：
+
+``` javascript
+const regexGreekSymbol = /\p{Script=Greek}/u;
+regexGreekSymbol.test('π') // true
+```
+上面代码匹配了一个希腊字母。
+
+规则：
+> \p{UnicodePropertyName=UnicodePropertyValue}
+
+有些属性可以致谢属性名。
+
+**注意，这两种类只对 Unicode 有效，所以使用的时候一定要加上u修饰符。如果不加u修饰符，正则表达式使用\p和\P会报错，ECMAScript 预留了这两个类。**
+
+功能非常强：
+
+``` javascript
+const regex = /^\p{Decimal_Number}+$/u;
+regex.test('𝟏𝟐𝟑𝟜𝟝𝟞𝟩𝟪𝟫𝟬𝟭𝟮𝟯𝟺𝟻𝟼') // true
+
+// 匹配所有数字
+const regex = /^\p{Number}+$/u;
+regex.test('²³¹¼½¾') // true
+regex.test('㉛㉜㉝') // true
+regex.test('ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫ') // true
+
+// 匹配各种文字的所有字母，等同于 Unicode 版的 \w
+[\p{Alphabetic}\p{Mark}\p{Decimal_Number}\p{Connector_Punctuation}\p{Join_Control}]
+
+// 匹配各种文字的所有非字母的字符，等同于 Unicode 版的 \W
+[^\p{Alphabetic}\p{Mark}\p{Decimal_Number}\p{Connector_Punctuation}\p{Join_Control}]
+
+// 匹配所有的箭头字符
+const regexArrows = /^\p{Block=Arrows}+$/u;
+regexArrows.test('←↑→↓↔↕↖↗↘↙⇏⇐⇑⇒⇓⇔⇕⇖⇗⇘⇙⇧⇩') // true
+```
+
+### 具名组匹配
+原本的组匹配就是加一个圆括号，然后就可以用序号访问到。
+
+``` javascript
+const RE_DATE = /(\d{4})-(\d{2})-(\d{2})/;
+
+const matchObj = RE_DATE.exec('1999-12-31');
+const year = matchObj[1]; // 1999
+const month = matchObj[2]; // 12
+const day = matchObj[3]; // 31
+```
+
+现在引入了具体的名称，便于引用。
+
+``` javascript
+const RE_DATE = /(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})/;
+
+const matchObj = RE_DATE.exec('1999-12-31');
+const year = matchObj.groups.year; // 1999
+const month = matchObj.groups.month; // 12
+const day = matchObj.groups.day; // 31
+```
+
+在圆括号内部，模式的头部添加“问号 + 尖括号 + 组名”（?<year>），然后就可以在exec方法返回结果的groups属性上引用该组名。同时，数字序号（matchObj[1]）依然有效。
+
+用法非常骚气：
+
+``` javascript
+// 可以直接赋值
+let {groups: {one, two}} = /^(?<one>.*):(?<two>.*)$/u.exec('foo:bar');
+one  // foo
+two  // bar
+
+// 直接replace
+let re = /(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})/u;
+
+'2015-01-02'.replace(re, '$<day>/$<month>/$<year>')
+// '02/01/2015'
+
+// 内部自己引用
+const RE_TWICE = /^(?<word>[a-z]+)!\k<word>$/;
+RE_TWICE.test('abc!abc') // true
+RE_TWICE.test('abc!ab') // false
+```
 
 
 
