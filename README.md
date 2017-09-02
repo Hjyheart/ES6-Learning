@@ -1004,5 +1004,213 @@ RE_TWICE.test('abc!abc') // true
 RE_TWICE.test('abc!ab') // false
 ```
 
+## 数值的扩展
+### 二进制和八进制表示法
+ES6 提供了二进制和八进制数值的新的写法，分别用前缀0b（或0B）和0o（或0O）表示。
+
+``` javascript
+0b111110111 === 503 // true
+0o767 === 503 // true
+```
+
+从 ES5 开始，在严格模式之中，八进制就不再允许使用前缀0表示，ES6 进一步明确，要使用前缀0o表示。
+
+``` javascript
+/ 非严格模式
+(function(){
+  console.log(0o11 === 011);
+})() // true
+
+// 严格模式
+(function(){
+  'use strict';
+  console.log(0o11 === 011);
+})() // Uncaught SyntaxError: Octal literals are not allowed in strict mode.
+```
+
+如果要将0b和0o前缀的字符串数值转为十进制，要使用Number方法。
+
+``` javascript
+Number('0b111')  // 7
+Number('0o10')  // 8
+```
+
+### Number.isFinite(), Number.isNaN()
+ES6 在Number对象上，新提供了Number.isFinite()和Number.isNaN()两个方法。
+Number.isFinite()用来检查一个数值是否为有限的（finite）。
+Number.isNaN()用来检查一个数值是否为NaN。
+
+### Number.parseInt(), Number.parseFloat()
+ES6将parseInt()和parseFloat()两个方法放进了Number里，行为保持不变。
+
+### Number.isInteger()
+ES6新加了isInteger()方法来判断一个数是不是整数，在js中，整数和浮点数是一样的存储方式。所以1和1.0会得到一样的结果。
+
+### Number.EPSILON
+这个东西纯粹是为了方便。我们都知道浮点数的比较是比较麻烦的，浮点数的计算也是不精确的，这个常量的添加就是为了来进行误差检查的。
+
+``` javascript
+Number.EPSILON
+// 2.220446049250313e-16
+Number.EPSILON.toFixed(20)
+// '0.00000000000000022204'
+```
+
+如果说计算的误差小于这个值，我们就可以说我们的计算是精确的
+
+### 安全整数和Number.isSafeIntger()
+js能够精确表示的数值在负2的53次和2的53次之间，超过了就不精确了。ES6引入Number.MAX_SAFE_INTEGER和Number.MIN_SAFE_INTEGER这两个常量，用来表示这个范围的上下限。Number.isSafeInteger()则是用来判断一个整数是否落在这个范围之内。
+
+``` javascript
+Number.isSafeInteger('a') // false
+Number.isSafeInteger(null) // false
+Number.isSafeInteger(NaN) // false
+Number.isSafeInteger(Infinity) // false
+Number.isSafeInteger(-Infinity) // false
+
+Number.isSafeInteger(3) // true
+Number.isSafeInteger(1.2) // false
+Number.isSafeInteger(9007199254740990) // true
+Number.isSafeInteger(9007199254740992) // false
+
+Number.isSafeInteger(Number.MIN_SAFE_INTEGER - 1) // false
+Number.isSafeInteger(Number.MIN_SAFE_INTEGER) // true
+Number.isSafeInteger(Number.MAX_SAFE_INTEGER) // true
+Number.isSafeInteger(Number.MAX_SAFE_INTEGER + 1) // false
+```
+
+### Math对象的拓展
+ES6在Math对象上新增了17个数学方法。
+
+#### Math.trunc()
+Math.trunc()方法用来去除小数部分，对于非数值，会先转换为数值，对于空值和无法截取整数的值，会返回NaN。
+
+``` javascript
+Math.trunc(4.1) // 4
+Math.trunc(4.9) // 4
+Math.trunc(-4.1) // -4
+Math.trunc(-4.9) // -4
+Math.trunc(-0.1234) // -0
+```
+
+#### Math.sign()
+Math.sign()方法用来判断一个数是整数、负数、0。有5种情况：
+
+- 参数为正数，返回+1
+- 参数为负数，返回-1
+- 参数为0，返回0
+- 参数为-0，返回-0
+- 其他值，返回NaN
+
+#### Math.signbit()
+Math.signbit()用来解决无法判断正负零的问题。
+
+#### Math.cbrt()
+Math.cbrt()方法用来计算一个数的立方根，会先转换为数值。判断一个数的符号位是否设置了。
+
+``` javascript
+Math.cbrt(-1) // -1
+Math.cbrt(0)  // 0
+Math.cbrt(1)  // 1
+Math.cbrt(2)  // 1.2599210498948734
+```
+
+#### Math.clz32()
+Math.clz32()方法返回一个数的32位无符号整数形式有多少个前导。对于小数，只考虑整数部分，对于空值或者其他类型的值，会先转化，再计算。
+
+``` javascript
+Math.clz32(0) // 32
+Math.clz32(1) // 31
+Math.clz32(1000) // 22
+```
+
+#### Math.imul()
+Math.imul()方法返回两个数以32位带符号整数形式相乘的结果，返回的也是一个32位的带符号整数。这个方法感觉用处不是很大，就是一个核心问题，超过了2的53次js无法保证精度，低位会有问题，在做溢出的计算时，这个方法可以保证低位的精度。一般来说很少会有这种情况，我感觉用处不大。
+
+``` javascript
+(0x7fffffff * 0x7fffffff)|0 // 0
+Math.imul(0x7fffffff, 0x7fffffff) // 1
+```
+
+#### Math.fround()
+Math.fround()方法返回一个数的单精度浮点数形式，用来处理没法用64位二进制精确表示的小数。
+
+``` javascript
+Math.fround(0)     // 0
+Math.fround(1)     // 1
+Math.fround(1.337) // 1.3370000123977661
+Math.fround(1.5)   // 1.5
+Math.fround(NaN)   // NaN
+```
+
+#### Math.hypot()
+Math.hypot()方法返回所有参数的平方和的平方根。
+
+``` javascript
+Math.hypot(3, 4);        // 5
+Math.hypot(3, 4, 5);     // 7.0710678118654755
+Math.hypot();            // 0
+Math.hypot(NaN);         // NaN
+```
+
+#### Math.expm1(), Math.log1p(), Math.log10(), Math.log2()
+这四个方法都是针对对数的方法。
+
+- Math.expm1(x)会返回e^x -1
+- Math.log1p(x)会返回1 + x的自然对数
+- Math.log10(x)会返回以10为底的x的对数。如果x小于0，则返回NaN
+- Math.log2(x)会返回以2为底的x的对数。如果x小于0，则返回NaN
+
+#### 双曲线方法
+
+- Math.sinh(x) 返回x的双曲正弦（hyperbolic sine）
+- Math.cosh(x) 返回x的双曲余弦（hyperbolic cosine）
+- Math.tanh(x) 返回x的双曲正切（hyperbolic tangent）
+- Math.asinh(x) 返回x的反双曲正弦（inverse hyperbolic sine）
+- Math.acosh(x) 返回x的反双曲余弦（inverse hyperbolic cosine）
+- Math.atanh(x) 返回x的反双曲正切（inverse hyperbolic tangent）
+
+### 指数运算符
+ES6新增了指数运算符，它可以和=结合，形成新的赋值运算符 \**=。
+
+``` javascript
+2 ** 2 // 4
+2 ** 3 // 8
+let a = 1.5;
+a **= 2;
+// 等同于 a = a * a;
+
+let b = 4;
+b **= 3;
+// 等同于 b = b * b * b;
+```
+
+**这个运算符的实现和Math.pow()是不同的，在对特别大的数据进行计算时，会有一些差异。**
+
+### Integer数据类型
+这个特性完全是为了迎合时代潮流了。因为js的所有数字都保存成64位浮点数，所以它的最高精度只能到53个二进制位，没法做科学计算。现在就出来一个Integer，只用来表示整数，无位数的限制。
+
+为了区分，必须使用n后缀。
+
+``` javascript
+1n + 2n //3n
+0b1101n // 二进制
+0o777n // 八进制
+0xFFn // 十六进制
+
+typeof 123n
+// 'integer'
+
+Integer(123) // 123n
+Integer('123') // 123n
+Integer(false) // 0n
+Integer(true) // 1n
+```
+
+在数学运算方面，Integer 类型的+、-、\*和\**这四个二元运算符，与 Number 类型的行为一致。但是有两个除外：不带符号的右移位运算符>>>和一元的求正运算符+，使用时会报错。前者是因为>>>要求最高位补0，但是 Integer 类型没有最高位，导致这个运算符无意义。后者是因为一元运算符+在 asm.js 里面总是返回 Number 类型或者报错。
+
+**Integer 类型不能与 Number 类型进行混合运算。**
+**相等运算符（==）会改变数据类型，也是不允许混合使用。**
+
 
 
