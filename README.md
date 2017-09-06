@@ -1212,5 +1212,400 @@ Integer(true) // 1n
 **Integer 类型不能与 Number 类型进行混合运算。**
 **相等运算符（==）会改变数据类型，也是不允许混合使用。**
 
+## 函数的拓展
+### 函数默认值
+到了ES6，函数终于有默认值了，在ES5中其实是可以用一些变通的方法来完成参数默认的，但是有一些缺点，比如说如果参数赋值了，但是对应的布尔值为false，则该赋值不起作用。ES6就解决了这个问题。
+
+``` javascript
+// ES5
+function log(x, y) {
+  y = y || 'World';
+  console.log(x, y);
+}
+
+log('Hello') // Hello World
+log('Hello', 'China') // Hello China
+log('Hello', '') // Hello World 出现问题
+
+// ES6
+function log(x, y = 'World') {
+  console.log(x, y);
+}
+
+log('Hello') // Hello World
+log('Hello', 'China') // Hello China
+log('Hello', '') // Hello 没毛病
+```
+
+**参数变量是默认声明的，所以不能用let或者const再次声明**
+
+``` javascript
+function foo(x = 5) {
+  let x = 1; // error
+  const x = 2; // error
+}
+```
+**使用参数默认值时，函数不能有同名参数**
+
+``` javascript
+// 不报错
+function foo(x, x, y) {
+  // ...
+}
+
+// 报错
+function foo(x, x, y = 1) {
+  // ...
+}
+// SyntaxError: Duplicate parameter name not allowed in this context
+```
+
+**参数默认值不是传值的，而是每次都重新计算默认值表达式的值。也就是说，参数默认值是惰性求值的**
+
+``` javascript
+let x = 99;
+function foo(p = x + 1) {
+  console.log(p);
+}
+
+foo() // 100
+
+x = 100;
+foo() // 101
+```
+每次调用都重新计算
+
+#### 与解构赋值默认值结合使用
+参数默认值可以和解构赋值的默认值，结合起来使用。
+更骚气的是如果参数时一个对象，对象里面做了默认值，比如{x, y=5}，这个时候如果啥也不传就会报错，这个时候可以通过提供函数参数的默认值，避免报错。
+
+``` javascript
+function foo({x, y = 5} = {}) {
+  console.log(x, y);
+}
+
+foo() // undefined 5
+
+function fetch(url, { body = '', method = 'GET', headers = {} }) {
+  console.log(method);
+}
+
+fetch('http://example.com', {})
+// "GET"
+
+fetch('http://example.com')
+
+function fetch(url, { method = 'GET' } = {}) {
+  console.log(method);
+}
+
+fetch('http://example.com')
+// "GET"
+```
+出现了双重默认值。
+
+#### 参数默认值的位置
+通常情况下，定义了默认值的参数，应该是函数的尾参数。因为这样比较容易看出来，到底省略了哪些参数。如果非尾部的参数设置默认值，实际上这个参数是没法省略的。
+
+``` javascript
+// 例一
+function f(x = 1, y) {
+  return [x, y];
+}
+
+f() // [1, undefined]
+f(2) // [2, undefined])
+f(, 1) // 报错
+f(undefined, 1) // [1, 1]
+
+// 例二
+function f(x, y = 5, z) {
+  return [x, y, z];
+}
+
+f() // [undefined, 5, undefined]
+f(1) // [1, 5, undefined]
+f(1, ,2) // 报错
+f(1, undefined, 2) // [1, 5, 2]
+```
+
+上述情况都不能省略参数，只能设置undefined来触发等于默认值。但是null没有这个效果。
+
+#### 函数的长度（length）
+函数的属性length返回函数没有指定默认值的参数的个数，如果指定了默认参数，那么将不计入length，length永远返回没有默认参数的传入参数个数。
+
+``` javascript
+(function (a) {}).length // 1
+(function (a = 5) {}).length // 0
+(function (a, b, c = 5) {}).length // 2
+```
+有趣的是这个length的计数是根据默认参数的位置来计算的，果设置了默认值的参数不是尾参数，那么length属性也不再计入后面的参数了。
+
+``` javascript
+(function (a = 0, b, c) {}).length // 0
+(function (a, b = 1, c) {}).length // 1
+```
+
+#### 作用域
+一旦设置了参数的默认值，函数进行声明初始化时，参数会形成一个单独的作用域。等到初始化结束，这个作用域也就消失了。
+
+``` javascript
+var x = 1;
+
+function f(x, y = x) {
+  console.log(y);
+}
+
+f(2) // 2
+
+let x = 1;
+
+function f(y = x) {
+  let x = 2;
+  console.log(y);
+}
+
+f() // 1
+```
+上面两种情况，第一种就是指向第一个x，外面全局的x不会影响y的赋值。但是第二种情况因为x本身没有定义，所以会指向外部全局的x，但是在内部x的操作，并不会影响到y的值。
+
+#### 应用
+利用参数默认值，可以指定某一个参数不得省略，如果省略就抛出错误。
+
+``` javascript
+function throwIfMissing() {
+  throw new Error('Missing parameter');
+}
+
+function foo(mustBeProvided = throwIfMissing()) {
+  return mustBeProvided;
+}
+
+foo()
+// Error: Missing parameter
+```
+
+### rest参数
+ES5中函数传参可以用arguments，在ES6加入了rest参数来使得传参更加地优雅，用法为...变量名。
+
+``` javascript
+function add(...values) {
+  let sum = 0;
+
+  for (var val of values) {
+    sum += val;
+  }
+
+  return sum;
+}
+
+add(2, 5, 3) // 10
+```
+
+**注意，rest参数必须是最后一个参数，否则会报错**
+
+### 严格模式
+ES5开始函数内部可以设定为严格模式，但是ES6引入默认值、解构赋值、扩展运算符之后，函数内部就不可以使用严格模式了，否则就会报错。
+
+因为函数内部的严格模式，同样适用于函数体和函数参数，但是函数执行的时候，先执行函数参数，然后执行函数体，这就不合理了，只有从函数体之中，才能知道参数是否应该以严格模式执行，但是参数应该先初始化。
+
+当然了，你可以吧“use strict”放在外面或者用一个立即执行的函数包住函数。
+
+``` javascript
+'use strict';
+
+function doSomething(a, b = a) {
+  // code
+}
+
+const doSomething = (function () {
+  'use strict';
+  return function(value = 42) {
+    return value;
+  };
+}());
+```
+
+### name属性
+函数的name属性，直接返回函数的名字，有很多种情况，比如匿名函数还有bind的函数等，详见代码。
+
+``` javascript
+var f = function () {};
+
+// ES5
+f.name // ""
+
+// ES6
+f.name // "f"
+
+const bar = function baz() {};
+
+// ES5
+bar.name // "baz"
+
+// ES6
+bar.name // "baz"
+
+(new Function).name // "anonymous"
+
+function foo() {};
+foo.bind({}).name // "bound foo"
+
+(function(){}).bind({}).name // "bound "
+```
+
+### 箭头函数
+ES6的箭头表达式是非常有用的一个东西。哇，真的方便。
+
+如果箭头函数不需要参数或需要多个参数，就使用一个圆括号代表参数部分。
+
+``` javascript
+var f = () => 5;
+// 等同于
+var f = function () { return 5 };
+
+var sum = (num1, num2) => num1 + num2;
+// 等同于
+var sum = function(num1, num2) {
+  return num1 + num2;
+};
+```
+
+如果箭头函数的代码块部分多于一条语句，就要使用大括号将它们括起来，并且使用return语句返回。
+
+var sum = (num1, num2) => { return num1 + num2; }
+由于大括号被解释为代码块，所以如果箭头函数直接返回一个对象，必须在对象外面加上括号，否则会报错。
+
+``` javascript
+// 报错
+let getTempItem = id => { id: id, name: "Temp" };
+
+// 不报错
+let getTempItem = id => ({ id: id, name: "Temp" });
+```
+
+如果箭头函数只有一行语句，且不需要返回值，可以采用下面的写法，就不用写大括号了。
+
+``` javascript
+let fn = () => void doesNotReturn();
+```
+
+箭头函数可以与变量解构结合使用。
+
+``` javascript
+const full = ({ first, last }) => first + ' ' + last;
+
+// 等同于
+function full(person) {
+  return person.first + ' ' + person.last;
+}
+```
+
+箭头函数使得表达更加简洁。
+箭头函数的一个用处是简化回调函数。
+
+``` javascript
+// 正常函数写法
+[1,2,3].map(function (x) {
+  return x * x;
+});
+
+// 箭头函数写法
+[1,2,3].map(x => x * x);
+另一个例子是
+
+// 正常函数写法
+var result = values.sort(function (a, b) {
+  return a - b;
+});
+
+// 箭头函数写法
+var result = values.sort((a, b) => a - b);
+```
+
+下面是 rest 参数与箭头函数结合的例子。
+
+``` javascript
+const numbers = (...nums) => nums;
+
+numbers(1, 2, 3, 4, 5)
+// [1,2,3,4,5]
+
+const headAndTail = (head, ...tail) => [head, tail];
+
+headAndTail(1, 2, 3, 4, 5)
+// [1,[2,3,4,5]]
+```
+
+#### 注意点
+
+- 函数体内的this对象，就是定义时所在的对象，而不是使用时所在的对象
+- 不可以当作构造函数，也就是说，不可以使用new命令，否则会抛出一个错误
+- 不可以使用arguments对象，该对象在函数体内不存在。如果要用，可以用 rest 参数代替
+- 不可以使用yield命令，因此箭头函数不能用作 Generator 函数
+
+**第一点尤其值得注意。this对象的指向是可变的，但是在箭头函数中，它是固定的**
+
+#### 绑定this
+箭头函数可以绑定this对象，这就可以减少bind显式的调用。
+
+函数绑定运算符是并排的两个冒号（::），双冒号左边是一个对象，右边是一个函数。该运算符会自动将左边的对象，作为上下文环境（即this对象），绑定到右边的函数上面。
+
+如果双冒号左边为空，右边是一个对象的方法，则等于将该方法绑定在该对象上面。
+
+由于双冒号运算符返回的还是原对象，因此可以采用链式写法。
+
+``` javascript
+foo::bar;
+// 等同于
+bar.bind(foo);
+
+foo::bar(...arguments);
+// 等同于
+bar.apply(foo, arguments);
+
+const hasOwnProperty = Object.prototype.hasOwnProperty;
+function hasOwn(obj, key) {
+  return obj::hasOwnProperty(key);
+}
+
+var method = obj::obj.foo;
+// 等同于
+var method = ::obj.foo;
+
+let log = ::console.log;
+// 等同于
+var log = console.log.bind(console);
+
+// 例一
+import { map, takeWhile, forEach } from "iterlib";
+
+getPlayers()
+::map(x => x.character())
+::takeWhile(x => x.strength > 100)
+::forEach(x => console.log(x));
+
+// 例二
+let { find, html } = jake;
+
+document.querySelectorAll("div.myClass")
+::find("p")
+::html("hahaha");
+```
+
+#### 尾逗号
+ES6支持参数的最后一个后面可以接一个逗号
+
+``` javascript
+function clownsEverywhere(
+  param1,
+  param2,
+) { /* ... */ }
+
+clownsEverywhere(
+  'foo',
+  'bar
+```
+
 
 
